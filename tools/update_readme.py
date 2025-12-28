@@ -4,6 +4,12 @@ import sys
 
 
 def validate_version(version_str):
+    """
+    Validate that a version string is non-empty and matches the numeric pattern `major.minor` or `major.minor.patch`.
+    
+    Parameters:
+    	version_str (str): Version string to validate; expected format is digits.digits or digits.digits.digits (e.g., "3.8" or "3.8.10"). On invalid input the function prints an error message and exits the process with status code 1.
+    """
     if not version_str:
         print("Error: Version argument is empty.")
         sys.exit(1)
@@ -14,6 +20,19 @@ def validate_version(version_str):
 
 def update_readme(min_version, max_version, file_path="README.md"):
     # 1. Validate Inputs
+    """
+    Update the README's "Prerequisites: Python" line to a specified version or version range.
+    
+    Validates the provided min_version and max_version, computes a display string (uses a single version when they are equal, otherwise "min_version - max_version"), and replaces the existing prerequisites line in the README at file_path with that string. On success the README is rewritten only if its content changed.
+    
+    Parameters:
+        min_version (str): Minimum Python version to set in the README (e.g., "3.10").
+        max_version (str): Maximum Python version to set in the README (e.g., "3.13").
+        file_path (str): Path to the README file to update. Defaults to "README.md".
+    
+    Notes:
+        - Exits the process with status 1 if a version is invalid, the README file is missing, or the expected "Prerequisites" line cannot be found.
+    """
     validate_version(min_version)
     validate_version(max_version)
 
