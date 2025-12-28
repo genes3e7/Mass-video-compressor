@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       python: ${{ steps.filter.outputs.python }}
+      build: ${{ steps.filter.outputs.build }}
     steps:
     - uses: actions/checkout@v4
     - uses: dorny/paths-filter@v2
@@ -24,6 +25,8 @@ jobs:
             - 'requirements.txt'
             - 'requirements.in'
             - 'pyproject.toml'
+          build:
+            - 'build.py'
 
   # JOB 2: Test Matrix (Python 3.10 - 3.14)
   test-matrix:
@@ -128,13 +131,13 @@ jobs:
     # 5. Lint & Format
     - name: Ruff Format & Fix
       run: |
-        pip install ruff
         ruff check . --fix
         ruff format .
 
     # 6. Verify Build Script (Conditional)
+    # Runs if main branch OR if build.py was modified in this push/PR
     - name: Verify Builder
-      if: github.ref == 'refs/heads/main' || contains(github.event.head_commit.modified, 'build.py')
+      if: github.ref == 'refs/heads/main' || needs.changes.outputs.build == 'true'
       run: |
         pip install pyinstaller -r requirements.txt
         python build.py

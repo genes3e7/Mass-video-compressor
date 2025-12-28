@@ -1,2 +1,2 @@
-* text=auto
-*.py text eol=lf
+# Force LF line endings for all detected text files
+* text=auto eol=lf

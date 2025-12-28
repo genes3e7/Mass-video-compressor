@@ -42,10 +42,8 @@ def update_readme(min_version, max_version, file_path="README.md"):
         ValueError: If either version string is empty or does not match
             the expected numeric format.
         FileNotFoundError: If the specified README file does not exist.
-
-    Notes:
-        The function may exit the process with status 1 on file
-        read/write errors or if the prerequisites line is not found.
+        IOError: If file read/write operations fail.
+        SystemExit: If the prerequisites pattern is not found in the file.
     """
     # 1. Validate Inputs
     validate_version(min_version)
@@ -58,8 +56,7 @@ def update_readme(min_version, max_version, file_path="README.md"):
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
     except IOError as e:
-        print(f"Error reading {file_path}: {e}")
-        sys.exit(1)
+        raise IOError(f"Error reading {file_path}: {e}") from e
 
     # Determine string format (e.g., "3.10" or "3.10 - 3.13")
     if min_version == max_version:
@@ -104,8 +101,7 @@ def update_readme(min_version, max_version, file_path="README.md"):
                 f.write(new_content)
             print("README.md updated successfully.")
         except IOError as e:
-            print(f"Error writing to {file_path}: {e}")
-            sys.exit(1)
+            raise IOError(f"Error writing to {file_path}: {e}") from e
     else:
         print("README.md already up to date.")
 
@@ -117,6 +113,6 @@ if __name__ == "__main__":
 
     try:
         update_readme(sys.argv[1], sys.argv[2])
-    except (ValueError, FileNotFoundError) as e:
+    except (ValueError, FileNotFoundError, IOError) as e:
         print(f"Error: {e}")
         sys.exit(1)
