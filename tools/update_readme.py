@@ -79,8 +79,8 @@ def update_readme(min_version, max_version, file_path="README.md"):
     def _replace_match(m):
         """
         Construct a replacement string for a regex match by inserting
-        the module's `version_string` between preserved surrounding
-        groups.
+        the enclosing function's `version_string` between preserved
+        surrounding groups.
 
         Parameters:
             m (re.Match): Regex match whose group(1) and group(3) are
