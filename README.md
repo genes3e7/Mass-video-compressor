@@ -61,6 +61,8 @@ MVC is a "fire-and-forget" batch compressor tool designed for power users. Unlik
 
 ## 📦 Installation & Usage
 
+**Prerequisites:** Python 3.10 - 3.14
+
 It is highly recommended to run this tool in a **Virtual Environment (venv)** to keep dependencies clean.
 
 ### 1. Set up the Environment
