@@ -11,14 +11,14 @@ def validate_version(version_str):
 
     Parameters:
         version_str (str): Version string (e.g., "3.8" or "3.8.10").
-                           On invalid input, exits with status code 1.
+
+    Raises:
+        ValueError: If version_str is empty or has invalid format.
     """
     if not version_str:
-        print("Error: Version argument is empty.")
-        sys.exit(1)
+        raise ValueError("Version argument is empty.")
     if not re.match(r"^\d+\.\d+(?:\.\d+)?$", version_str):
-        print(f"Error: Invalid version format '{version_str}'.")
-        sys.exit(1)
+        raise ValueError(f"Invalid version format '{version_str}'.")
 
 
 def update_readme(min_version, max_version, file_path="README.md"):
@@ -40,11 +40,14 @@ def update_readme(min_version, max_version, file_path="README.md"):
     validate_version(max_version)
 
     if not os.path.exists(file_path):
-        print(f"Error: {file_path} not found.")
-        sys.exit(1)
+        raise FileNotFoundError(f"{file_path} not found.")
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except IOError as e:
+        print(f"Error reading {file_path}: {e}")
+        sys.exit(1)
 
     # Determine string format (e.g., "3.10" or "3.10 - 3.13")
     if min_version == max_version:
@@ -64,13 +67,20 @@ def update_readme(min_version, max_version, file_path="README.md"):
         print("Critical: Could not find 'Prerequisites' line in README.")
         sys.exit(1)
 
+    def _replace_match(m):
+        return f"{m.group(1)}{version_string}{m.group(3)}"
+
     # Replace with new version range
-    new_content = re.sub(pattern, lambda m: f"{m.group(1)}{version_string}{m.group(3)}", content)
+    new_content = re.sub(pattern, _replace_match, content)
 
     if new_content != content:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        print("README.md updated successfully.")
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            print("README.md updated successfully.")
+        except IOError as e:
+            print(f"Error writing to {file_path}: {e}")
+            sys.exit(1)
     else:
         print("README.md already up to date.")
 
@@ -79,4 +89,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python update_readme.py <min_version> <max_version>")
         sys.exit(1)
-    update_readme(sys.argv[1], sys.argv[2])
+
+    try:
+        update_readme(sys.argv[1], sys.argv[2])
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}")
+        sys.exit(1)

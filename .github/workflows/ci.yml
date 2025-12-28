@@ -25,7 +25,7 @@ jobs:
             - 'requirements.in'
             - 'pyproject.toml'
 
-  # JOB 2: Test Matrix (Python 3.10 - 3.13)
+  # JOB 2: Test Matrix (Python 3.10 - 3.14)
   test-matrix:
     needs: changes
     if: ${{ needs.changes.outputs.python == 'true' }}
@@ -52,7 +52,6 @@ jobs:
         else
           pip install -r requirements.txt
         fi
-        pip install pytest pyinstaller
 
     - name: Test with Pytest
       run: pytest tests/
@@ -91,7 +90,7 @@ jobs:
     - name: Determine Supported Range
       id: versions
       run: |
-        if [ -z "$(ls -A artifacts)" ]; then
+        if [ ! -d artifacts ] || [ -z "$(ls -A artifacts)" ]; then
            echo "No versions passed! Failing job."
            exit 1
         fi
@@ -133,8 +132,9 @@ jobs:
         ruff check . --fix
         ruff format .
 
-    # 6. Verify Build Script (Optional safety check)
+    # 6. Verify Build Script (Conditional)
     - name: Verify Builder
+      if: github.ref == 'refs/heads/main' || contains(github.event.head_commit.modified, 'build.py')
       run: |
         pip install pyinstaller -r requirements.txt
         python build.py
