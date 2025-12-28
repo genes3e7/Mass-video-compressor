@@ -20,7 +20,11 @@ def _get_optimal_workers():
 
     Logic:
     1. Get total logical CPU cores.
-    2. Divide by 4 (since we force '-threads 4' per worker to prevent thrashing).
+    2. Divide by 4.
+       Note: We force '-threads 4' in presets to limit encoder threads.
+       However, this is an approximation for scaling, as demuxing, filtering,
+       and muxing spawn additional threads (often 8-12 total OS threads per worker).
+       It does not represent a hard guarantee of core usage.
     3. Clamp between 1 and 5 to respect GPU encoding session limits and reduce overhead.
 
     Returns:
@@ -32,8 +36,8 @@ def _get_optimal_workers():
         if not cores:
             return 2  # Fallback
 
-        # Calculate optimal workers (1 worker per 4 logical cores)
-        workers = int(cores / 4)
+        # Calculate optimal workers (1 worker per ~4 logical cores)
+        workers = cores // 4
 
         # Clamp between 1 and 5
         return max(1, min(workers, 5))
