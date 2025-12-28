@@ -131,6 +131,8 @@ jobs:
     # 5. Lint & Format
     - name: Ruff Format & Fix
       run: |
+        # Must install ruff in this environment before running it
+        pip install -r requirements.txt
         ruff check . --fix
         ruff format .
 
