@@ -5,7 +5,8 @@ import sys
 
 def validate_version(version_str):
     """
-    Validate that a version string is non-empty and matches the numeric pattern.
+    Validate that a version string is non-empty and matches the numeric
+    pattern.
 
     Expected format: `major.minor` or `major.minor.patch`.
 
@@ -23,17 +24,28 @@ def validate_version(version_str):
 
 def update_readme(min_version, max_version, file_path="README.md"):
     """
-    Update the README's "Prerequisites: Python" line to a specified version or version range.
+    Update the README's "Prerequisites: Python" line to a specific
+    Python version or a version range.
 
-    Computes a display string (single version if equal, range otherwise) and updates the file.
+    Replaces the existing "**Prerequisites:** Python ..." line in the
+    target file with either a single version (when min_version ==
+    max_version) or a range "min_version - max_version". If the file
+    content changes, writes the updated content back to disk.
 
     Parameters:
         min_version (str): Minimum Python version (e.g., "3.10").
         max_version (str): Maximum Python version (e.g., "3.13").
-        file_path (str): Path to the README file. Defaults to "README.md".
+        file_path (str): Path to the README file. Defaults to
+            "README.md".
+
+    Raises:
+        ValueError: If either version string is empty or does not match
+            the expected numeric format.
+        FileNotFoundError: If the specified README file does not exist.
 
     Notes:
-        Exits with status 1 if a version is invalid, file missing, or pattern not found.
+        The function may exit the process with status 1 on file
+        read/write errors or if the prerequisites line is not found.
     """
     # 1. Validate Inputs
     validate_version(min_version)
@@ -68,6 +80,19 @@ def update_readme(min_version, max_version, file_path="README.md"):
         sys.exit(1)
 
     def _replace_match(m):
+        """
+        Construct a replacement string for a regex match by inserting
+        the module's `version_string` between preserved surrounding
+        groups.
+
+        Parameters:
+            m (re.Match): Regex match whose group(1) and group(3) are
+                kept; group(2) is replaced by `version_string`.
+
+        Returns:
+            str: The new string formed as group(1) + version_string +
+                group(3).
+        """
         return f"{m.group(1)}{version_string}{m.group(3)}"
 
     # Replace with new version range
