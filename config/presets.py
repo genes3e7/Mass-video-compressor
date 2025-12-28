@@ -8,6 +8,8 @@ PRESETS = {
         "description": "High CPU compression, readable text, clear mono voice.",
         "use_gpu": False,
         "video_params": [
+            "-threads",
+            "4",
             "-c:v",
             "libx264",
             "-preset",
@@ -46,7 +48,16 @@ PRESETS = {
             "h264_qsv": ["-preset", "veryslow", "-global_quality", "20"],
             "h264_videotoolbox": ["-q", "80"],
         },
-        "cpu_fallback": ["-c:v", "libx264", "-preset", "medium", "-crf", "18"],
+        "cpu_fallback": [
+            "-threads",
+            "4",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+        ],
         "audio_params": ["-c:a", "aac", "-b:a", "128k", "-ac", "2"],
     },
     "3": {
@@ -68,7 +79,16 @@ PRESETS = {
                 "1.5M",
             ],
         },
-        "cpu_fallback": ["-c:v", "libx264", "-preset", "fast", "-crf", "28"],
+        "cpu_fallback": [
+            "-threads",
+            "4",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "28",
+        ],
         "video_params": [
             # Common filter to scale height to 720, keep aspect ratio
             "-vf",
@@ -85,6 +105,8 @@ PRESETS = {
             "h264_nvenc": ["-preset", "p1", "-g", "15"],
         },
         "cpu_fallback": [
+            "-threads",
+            "4",
             "-c:v",
             "libx264",
             "-preset",
@@ -131,6 +153,8 @@ PRESETS = {
             "hevc_videotoolbox": ["-q", "90"],
         },
         "cpu_fallback": [
+            "-threads",
+            "4",
             "-c:v",
             "libx265",
             "-preset",
