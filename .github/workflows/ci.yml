@@ -8,11 +8,12 @@ permissions:
   contents: write
 
 jobs:
-  # JOB 1: Detect what changed
+  # JOB 1: Detect Changes
   changes:
     runs-on: ubuntu-latest
     outputs:
       python: ${{ steps.filter.outputs.python }}
+      build: ${{ steps.filter.outputs.build }}
     steps:
     - uses: actions/checkout@v4
     - uses: dorny/paths-filter@v2
@@ -24,15 +25,17 @@ jobs:
             - 'requirements.txt'
             - 'requirements.in'
             - 'pyproject.toml'
+          build:
+            - 'build.py'
 
-  # JOB 2: Run Tests Matrix
+  # JOB 2: Test Matrix (Python 3.10 - 3.14)
   test-matrix:
     needs: changes
     if: ${{ needs.changes.outputs.python == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
       fail-fast: false
 
     steps:
@@ -46,35 +49,107 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest imageio-ffmpeg tqdm
+        # Resolve fresh from requirements.in to test compatibility for THIS specific version
+        if [ -f requirements.in ]; then
+          pip install -r requirements.in
+        else
+          pip install -r requirements.txt
+        fi
 
     - name: Test with Pytest
       run: pytest tests/
 
-  # JOB 3: Lint & Format (Ruff)
+    # Record success for this version
+    - name: Record Success
+      if: success()
+      run: echo "${{ matrix.python-version }}" > python_version_${{ matrix.python-version }}.txt
+
+    - name: Upload Success Artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: passed-version-${{ matrix.python-version }}
+        path: python_version_${{ matrix.python-version }}.txt
+
+  # JOB 3: Finalize (Update Readme, Lint, Commit)
   finalize-updates:
-    needs: test-matrix
+    needs: [test-matrix, changes]
     runs-on: ubuntu-latest
     if: always() && needs.changes.outputs.python == 'true'
     steps:
     - uses: actions/checkout@v4
-    
+      with:
+        fetch-depth: 0
+
+    # 1. Download all "success" flags from the matrix
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: passed-version-*
+        merge-multiple: true
+
+    # 2. Calculate Supported Version Range
+    - name: Determine Supported Range
+      id: versions
+      run: |
+        if [ ! -d artifacts ] || [ -z "$(ls -A artifacts)" ]; then
+           echo "No versions passed! Failing job."
+           exit 1
+        fi
+        
+        # Combine all success files into one list and sort
+        cat artifacts/*.txt > all_versions.txt
+        sort -V all_versions.txt -o sorted_versions.txt
+        
+        MIN_VER=$(head -n 1 sorted_versions.txt)
+        MAX_VER=$(tail -n 1 sorted_versions.txt)
+        
+        echo "Calculated Range: $MIN_VER - $MAX_VER"
+        
+        echo "MIN_VER=$MIN_VER" >> $GITHUB_ENV
+        echo "MAX_VER=$MAX_VER" >> $GITHUB_ENV
+
+    # 3. Update README using the tool
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.13"
 
-    - name: Install Ruff
-      run: pip install ruff
+    - name: Update README
+      run: python tools/update_readme.py "${{ env.MIN_VER }}" "${{ env.MAX_VER }}"
 
+    # 4. Compile Requirements (Standardize dependencies)
+    - name: Compile requirements.txt
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-tools
+        if [ -f requirements.in ]; then 
+          pip-compile requirements.in --output-file requirements.txt --resolver=backtracking
+        fi
+
+    # 5. Lint & Format
     - name: Ruff Format & Fix
       run: |
+        # Must install ruff in this environment before running it
+        pip install -r requirements.txt
         ruff check . --fix
         ruff format .
 
+    # 6. Verify Build Script (Conditional)
+    # Runs if main branch OR if build.py was modified in this push/PR
+    - name: Verify Builder
+      if: github.ref == 'refs/heads/main' || needs.changes.outputs.build == 'true'
+      run: |
+        pip install pyinstaller -r requirements.txt
+        python build.py
+
+    # 7. Commit with Detailed Message
     - name: Commit and Push changes
       env:
         PR_BRANCH: ${{ github.head_ref || github.ref_name }}
+        MIN_VER: ${{ env.MIN_VER }}
+        MAX_VER: ${{ env.MAX_VER }}
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,6 +159,28 @@ jobs:
         if git diff --staged --quiet; then
           echo "No changes to commit."
         else
-          git commit -m "chore: CI auto-format [ruff]"
+          CHANGES=""
+          
+          # Check what actually changed to build the message
+          if git diff --staged --name-only | grep -q "README.md"; then
+            CHANGES="$CHANGES, versions ($MIN_VER-$MAX_VER)"
+          fi
+          
+          if git diff --staged --name-only | grep -q "requirements.txt"; then
+            CHANGES="$CHANGES, deps"
+          fi
+          
+          if git diff --staged --name-only | grep -q ".py$"; then
+            CHANGES="$CHANGES, formatting"
+          fi
+          
+          # Clean up string
+          CHANGES=$(echo "$CHANGES" | sed 's/^, //')
+          
+          if [ -z "$CHANGES" ]; then
+            CHANGES="misc updates"
+          fi
+          
+          git commit -m "chore: CI auto-update ($CHANGES)"
           git push origin HEAD:"$PR_BRANCH"
         fi
