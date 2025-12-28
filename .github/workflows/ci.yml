@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  # JOB 1: Detect what changed
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          python:
+            - '**.py'
+            - 'requirements.txt'
+            - 'requirements.in'
+            - 'pyproject.toml'
+
+  # JOB 2: Run Tests Matrix
+  test-matrix:
+    needs: changes
+    if: ${{ needs.changes.outputs.python == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest imageio-ffmpeg tqdm
+
+    - name: Test with Pytest
+      run: pytest tests/
+
+  # JOB 3: Lint & Format (Ruff)
+  finalize-updates:
+    needs: test-matrix
+    runs-on: ubuntu-latest
+    if: always() && needs.changes.outputs.python == 'true'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install Ruff
+      run: pip install ruff
+
+    - name: Ruff Format & Fix
+      run: |
+        ruff check . --fix
+        ruff format .
+
+    - name: Commit and Push changes
+      env:
+        PR_BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git add .
+        
+        if git diff --staged --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "chore: CI auto-format [ruff]"
+          git push origin HEAD:"$PR_BRANCH"
+        fi

@@ -1,0 +1,71 @@
+# --- Python General ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
+venv/
+env/
+.venv/
+.env
+venv.bak/
+
+# --- Testing & Linting ---
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+cover/
+htmlcov/
+
+# --- IDE & OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# --- CI Artifacts (GitHub Actions) ---
+# Created during the matrix strategy and version sorting steps
+artifacts/
+python_version_*.txt
+all_versions.txt
+sorted_versions.txt
+
+# --- PyInstaller ---
+*.spec
+
+# --- Project Specific ---
+# Ignore large video files to prevent accidental commits
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.flv
