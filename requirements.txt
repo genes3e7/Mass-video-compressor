@@ -25,7 +25,7 @@ pyinstaller-hooks-contrib==2025.11
     # via pyinstaller
 pytest==9.0.2
     # via -r requirements.in
-ruff==0.14.10
+ruff==0.15.9
     # via -r requirements.in
 tqdm==4.67.3
     # via -r requirements.in
