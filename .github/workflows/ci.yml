@@ -22,9 +22,8 @@ jobs:
         filters: |
           python:
             - '**.py'
-            - 'requirements.txt'
-            - 'requirements.in'
             - 'pyproject.toml'
+            - 'uv.lock'
           build:
             - 'build.py'
 
@@ -41,23 +40,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        # Resolve fresh from requirements.in to test compatibility for THIS specific version
-        if [ -f requirements.in ]; then
-          pip install -r requirements.in
-        else
-          pip install -r requirements.txt
-        fi
+      run: uv sync --all-extras
 
     - name: Test with Pytest
-      run: pytest tests/
+      run: uv run pytest
 
     # Record success for this version
     - name: Record Success
@@ -80,6 +75,11 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
 
     # 1. Download all "success" flags from the matrix
     - name: Download all artifacts
@@ -111,40 +111,22 @@ jobs:
         echo "MAX_VER=$MAX_VER" >> $GITHUB_ENV
 
     # 3. Update README using the tool
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
-
     - name: Update README
-      run: python tools/update_readme.py "${{ env.MIN_VER }}" "${{ env.MAX_VER }}"
+      run: uv run python tools/update_readme.py "${{ env.MIN_VER }}" "${{ env.MAX_VER }}"
 
-    # 4. Compile Requirements (Standardize dependencies)
-    - name: Compile requirements.txt
-      run: |
-        python -m pip install --upgrade pip
-        pip install pip-tools
-        if [ -f requirements.in ]; then 
-          pip-compile requirements.in --output-file requirements.txt --resolver=backtracking
-        fi
-
-    # 5. Lint & Format
+    # 4. Lint & Format
     - name: Ruff Format & Fix
       run: |
-        # Must install ruff in this environment before running it
-        pip install -r requirements.txt
-        ruff check . --fix
-        ruff format .
+        uv run ruff check . --fix
+        uv run ruff format .
 
-    # 6. Verify Build Script (Conditional)
-    # Runs if main branch OR if build.py was modified in this push/PR
+    # 5. Verify Build Script (Conditional)
     - name: Verify Builder
       if: github.ref == 'refs/heads/main' || needs.changes.outputs.build == 'true'
       run: |
-        pip install pyinstaller -r requirements.txt
-        python build.py
+        uv run python build.py
 
-    # 7. Commit with Detailed Message
+    # 6. Commit with Detailed Message
     - name: Commit and Push changes
       env:
         PR_BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -166,7 +148,7 @@ jobs:
             CHANGES="$CHANGES, versions ($MIN_VER-$MAX_VER)"
           fi
           
-          if git diff --staged --name-only | grep -q "requirements.txt"; then
+          if git diff --staged --name-only | grep -q "uv.lock"; then
             CHANGES="$CHANGES, deps"
           fi
           
