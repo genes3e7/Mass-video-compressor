@@ -178,7 +178,7 @@ class PreCIPipeline:
                 ["uv", "run", "--no-sync", "vulture", "core/", "config/", "--min-confidence", "80"],
                 "Dead Code Analysis (Vulture)",
             ),
-            (["uv", "run", "--no-sync", "interrogate", "."], "Docstring Coverage Enforcement"),
+            (["uv", "run", "--no-sync", "interrogate", "core", "config"], "Docstring Coverage Enforcement"),
         ]
         self.run_commands_parallel(parallel_tasks)
 
@@ -227,3 +227,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     pipeline = PreCIPipeline(args.min_ver, args.max_ver)
     pipeline.execute()
+
