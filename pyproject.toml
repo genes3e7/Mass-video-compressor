@@ -27,6 +27,7 @@ dev = [
 packages = ["core", "config"]
 
 [tool.ruff]
+extend-exclude = ["tools"]
 target-version = "py310"
 line-length = 100
 
@@ -61,6 +62,7 @@ verbose = 0
 quiet = false
 whitelist-regex = []
 color = true
+
 
 
 
