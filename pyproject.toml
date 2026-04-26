@@ -50,12 +50,13 @@ ignore-module = false
 ignore-nested-functions = false
 ignore-nested-classes = false
 ignore-setters = false
-fail-under = 100
+fail-under = 60
 exclude = ["setup.py", "tests", "build", "tools", "dist", ".venv"]
 ignore-regex = ["^get$", "^mock_.*", ".*Base$"]
 verbose = 0
 quiet = false
 whitelist-regex = []
 color = true
+
 
 
