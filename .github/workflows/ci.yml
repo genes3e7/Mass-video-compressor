@@ -2,167 +2,119 @@ name: CI
 
 on:
   push:
+    branches: [ "main", "master" ]
   pull_request:
+    branches: [ "**" ]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # JOB 1: Detect Changes
-  changes:
+  check-changes:
     runs-on: ubuntu-latest
     outputs:
       python: ${{ steps.filter.outputs.python }}
       build: ${{ steps.filter.outputs.build }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: dorny/paths-filter@v2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
       id: filter
       with:
         filters: |
           python:
             - '**.py'
-            - 'pyproject.toml'
             - 'uv.lock'
+            - 'pyproject.toml'
+            - '.github/workflows/ci.yml'
           build:
             - 'build.py'
 
-  # JOB 2: Test Matrix (Python 3.10 - 3.14)
   test-matrix:
-    needs: changes
-    if: ${{ needs.changes.outputs.python == 'true' }}
+    needs: check-changes
+    if: needs.check-changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
       fail-fast: false
-
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - name: Set up uv
+      uses: astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287 # v5.3.0
       with:
         enable-cache: true
-
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
-
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies
-      run: uv sync --all-extras
-
+      run: uv sync --all-extras --frozen
     - name: Test with Pytest
-      run: uv run pytest
-
-    # Record success for this version
+      run: uv run --no-sync pytest tests/
     - name: Record Success
       if: success()
       run: echo "${{ matrix.python-version }}" > python_version_${{ matrix.python-version }}.txt
-
     - name: Upload Success Artifact
       if: success()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: passed-version-${{ matrix.python-version }}
         path: python_version_${{ matrix.python-version }}.txt
 
-  # JOB 3: Finalize (Update Readme, Lint, Commit)
   finalize-updates:
-    needs: [test-matrix, changes]
+    needs: [test-matrix, check-changes]
     runs-on: ubuntu-latest
-    if: always() && needs.changes.outputs.python == 'true'
+    permissions:
+      contents: write
+    if: |
+      always() &&
+      needs.check-changes.outputs.python == 'true' &&
+      needs.test-matrix.result == 'success' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)       
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         fetch-depth: 0
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        enable-cache: true
-
-    # 1. Download all "success" flags from the matrix
+        ref: ${{ github.head_ref || github.ref_name }}
     - name: Download all artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.8
       with:
         path: artifacts
         pattern: passed-version-*
         merge-multiple: true
-
-    # 2. Calculate Supported Version Range
     - name: Determine Supported Range
       id: versions
       run: |
-        if [ ! -d artifacts ] || [ -z "$(ls -A artifacts)" ]; then
-           echo "No versions passed! Failing job."
+        if [ -z "$(ls -A artifacts 2>/dev/null)" ]; then
+           echo "No artifacts found."
            exit 1
         fi
-        
-        # Combine all success files into one list and sort
-        cat artifacts/*.txt > all_versions.txt
-        sort -V all_versions.txt -o sorted_versions.txt
-        
-        MIN_VER=$(head -n 1 sorted_versions.txt)
-        MAX_VER=$(tail -n 1 sorted_versions.txt)
-        
-        echo "Calculated Range: $MIN_VER - $MAX_VER"
-        
-        echo "MIN_VER=$MIN_VER" >> $GITHUB_ENV
-        echo "MAX_VER=$MAX_VER" >> $GITHUB_ENV
-
-    # 3. Update README using the tool
-    - name: Update README
-      run: uv run python tools/update_readme.py "${{ env.MIN_VER }}" "${{ env.MAX_VER }}"
-
-    # 4. Lint & Format
-    - name: Ruff Format & Fix
-      run: |
-        uv run ruff check . --fix
-        uv run ruff format .
-
-    # 5. Verify Build Script (Conditional)
-    - name: Verify Builder
-      if: github.ref == 'refs/heads/main' || needs.changes.outputs.build == 'true'
-      run: |
-        uv run python build.py
-
-    # 6. Commit with Detailed Message
-    - name: Commit and Push changes
+        cat artifacts/*.txt | sort -V > "$RUNNER_TEMP/sorted_versions.txt"
+        if [ ! -s "$RUNNER_TEMP/sorted_versions.txt" ]; then
+          echo "No stable versions found. Skipping update."
+          exit 0
+        fi
+        echo "MIN_VER=$(head -n 1 "$RUNNER_TEMP/sorted_versions.txt")" >> $GITHUB_ENV
+        echo "MAX_VER=$(tail -n 1 "$RUNNER_TEMP/sorted_versions.txt")" >> $GITHUB_ENV
+    - name: Set up uv
+      if: env.MIN_VER != ''
+      uses: astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287 # v5.3.0
+      with:
+        enable-cache: true
+    - name: Run Final CI Gate
+      if: env.MIN_VER != ''
+      run: uv run --no-sync python tools/pre_ci.py "$MIN_VER" "$MAX_VER"
+    - name: Commit and Push
+      if: env.MIN_VER != ''
       env:
-        PR_BRANCH: ${{ github.head_ref || github.ref_name }}
-        MIN_VER: ${{ env.MIN_VER }}
-        MAX_VER: ${{ env.MAX_VER }}
+        REF_TO_PUSH: ${{ github.head_ref || github.ref_name }}
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
         git add .
-        
-        if git diff --staged --quiet; then
-          echo "No changes to commit."
-        else
-          CHANGES=""
-          
-          # Check what actually changed to build the message
-          if git diff --staged --name-only | grep -q "README.md"; then
-            CHANGES="$CHANGES, versions ($MIN_VER-$MAX_VER)"
-          fi
-          
-          if git diff --staged --name-only | grep -q "uv.lock"; then
-            CHANGES="$CHANGES, deps"
-          fi
-          
-          if git diff --staged --name-only | grep -q ".py$"; then
-            CHANGES="$CHANGES, formatting"
-          fi
-          
-          # Clean up string
-          CHANGES=$(echo "$CHANGES" | sed 's/^, //')
-          
-          if [ -z "$CHANGES" ]; then
-            CHANGES="misc updates"
-          fi
-          
-          git commit -m "chore: CI auto-update ($CHANGES)"
-          git push origin HEAD:"$PR_BRANCH"
+        if ! git diff --staged --quiet; then
+          git commit -m "chore: professional standards updates and CI maintenance"
+          git push origin HEAD:"$REF_TO_PUSH"
         fi
