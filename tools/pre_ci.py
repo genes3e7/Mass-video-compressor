@@ -1,5 +1,8 @@
 """Mass Video Compressor: Local Pre-CI Script."""
 
+DEFAULT_MIN_PY = "3.10"
+DEFAULT_MAX_PY = "3.14"
+
 import argparse
 import concurrent.futures
 import os
@@ -19,7 +22,7 @@ class PreCIPipeline:
         "SKIPPED": "⏭️  SKIP",
     }
 
-    def __init__(self, min_ver: str = "3.10", max_ver: str = "3.15") -> None:
+    def __init__(self, min_ver: str = DEFAULT_MIN_PY, max_ver: str = DEFAULT_MAX_PY) -> None:
         self._results: list[tuple[str, bool | str]] = []
         self.is_ci = os.environ.get("CI", "").lower() in ("true", "1", "yes")
         self.min_ver = min_ver
