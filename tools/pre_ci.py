@@ -68,7 +68,7 @@ class PreCIPipeline:
                     text=True,
                     encoding="utf-8",
                     env=env,
-                    timeout=300,
+                    ,
                 ): desc
                 for cmd, desc in tasks
             }
@@ -289,5 +289,6 @@ if __name__ == "__main__":
 
     pipeline = PreCIPipeline(validated_min, validated_max)
     pipeline.execute()
+
 
 
