@@ -68,7 +68,6 @@ class PreCIPipeline:
                     text=True,
                     encoding="utf-8",
                     env=env,
-                    ,
                 ): desc
                 for cmd, desc in tasks
             }
@@ -139,10 +138,11 @@ class PreCIPipeline:
         # Pruneable directory names = literal (non-glob) entries from base_targets,
         # excluding hidden ones (already filtered via startswith(".")) and files.
         base_target_names = {
-            t for t in base_targets
+            t
+            for t in base_targets
             if not any(c in t for c in "*?[")
             and not t.startswith(".")
-            and "." not in pathlib.Path(t).suffix.lstrip(".")  # exclude file-like
+            and not pathlib.Path(t).suffix
         }
         if os.environ.get("VIRTUAL_ENV"):
             venv_names.add(pathlib.Path(os.environ["VIRTUAL_ENV"]).name)
