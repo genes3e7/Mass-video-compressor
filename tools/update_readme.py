@@ -53,10 +53,10 @@ def update_readme(min_version, max_version, file_path="README.md"):
         raise FileNotFoundError(f"{file_path} not found.")
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
-    except IOError as e:
-        raise IOError(f"Error reading {file_path}: {e}") from e
+    except OSError as e:
+        raise OSError(f"Error reading {file_path}: {e}") from e
 
     # Determine string format (e.g., "3.10" or "3.10 - 3.13")
     if min_version == max_version:
@@ -100,8 +100,8 @@ def update_readme(min_version, max_version, file_path="README.md"):
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
             print("README.md updated successfully.")
-        except IOError as e:
-            raise IOError(f"Error writing to {file_path}: {e}") from e
+        except OSError as e:
+            raise OSError(f"Error writing to {file_path}: {e}") from e
     else:
         print("README.md already up to date.")
 
@@ -113,6 +113,6 @@ if __name__ == "__main__":
 
     try:
         update_readme(sys.argv[1], sys.argv[2])
-    except (ValueError, FileNotFoundError, IOError) as e:
+    except (OSError, ValueError, FileNotFoundError) as e:
         print(f"Error: {e}")
         sys.exit(1)

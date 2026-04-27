@@ -1,0 +1,294 @@
+"""Mass Video Compressor: Local Pre-CI Script."""
+
+DEFAULT_MIN_PY = "3.10"
+DEFAULT_MAX_PY = "3.14"
+
+import argparse
+import concurrent.futures
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+from typing import ClassVar
+
+
+class PreCIPipeline:
+    """Orchestrates the local and CI validation checks for the project."""
+
+    STATUS_MAP: ClassVar[dict[bool | str, str]] = {
+        True: "✅ PASS",
+        False: "❌ FAIL",
+        "SKIPPED": "⏭️  SKIP",
+    }
+
+    def __init__(self, min_ver: str = DEFAULT_MIN_PY, max_ver: str = DEFAULT_MAX_PY) -> None:
+        self._results: list[tuple[str, bool | str]] = []
+        self.is_ci = os.environ.get("CI", "").lower() in ("true", "1", "yes")
+        self.min_ver = min_ver
+        self.max_ver = max_ver
+
+    def record_result(self, description: str, passed: bool | str) -> None:
+        self._results.append((description, passed))
+
+    def run_command(self, command: list[str], description: str, fail_fast: bool = False) -> bool:
+        print(f"\n>>> [Step: {description}]", flush=True)
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        try:
+            subprocess.run(command, check=True, env=env)
+            print(f"✅ {description} completed successfully.", flush=True)
+            self.record_result(description, True)
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"\n❌ FATAL: '{description}' failed with exit code {e.returncode}", flush=True)
+            self.record_result(description, False)
+            if fail_fast:
+                sys.exit(e.returncode)
+            return False
+        except (subprocess.SubprocessError, OSError) as e:
+            print(f"\n❌ FATAL: '{description}' error: {e}", flush=True)
+            self.record_result(description, False)
+            if fail_fast:
+                sys.exit(1)
+            return False
+
+    def run_commands_parallel(self, tasks: list[tuple[list[str], str]]) -> bool:
+        print("\n>>> [Parallel Execution] Starting concurrent checks...", flush=True)
+        success_overall = True
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_to_desc = {
+                executor.submit(
+                    subprocess.run,
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    env=env,
+                ): desc
+                for cmd, desc in tasks
+            }
+
+            for future in concurrent.futures.as_completed(future_to_desc):
+                desc = future_to_desc[future]
+                try:
+                    result = future.result()
+                    print(f"\n--- Output from {desc} ---", flush=True)
+                    if result.stdout:
+                        print(result.stdout.strip(), flush=True)
+                    if result.stderr:
+                        print(result.stderr.strip(), flush=True)
+
+                    if result.returncode == 0:
+                        print(f"✅ {desc} completed successfully.", flush=True)
+                        self.record_result(desc, True)
+                    else:
+                        print(
+                            f"❌ FATAL: '{desc}' failed with exit code {result.returncode}",
+                            flush=True,
+                        )
+                        self.record_result(desc, False)
+                        success_overall = False
+                except (subprocess.SubprocessError, OSError) as exc:
+                    stdout = getattr(exc, "stdout", None)
+                    stderr = getattr(exc, "stderr", None)
+                    if stdout:
+                        out_str = stdout.decode("utf-8", errors="replace") if isinstance(stdout, bytes) else str(stdout)
+                        print(f"\n--- Partial stdout from {desc} ---\n{out_str.strip()}", flush=True)
+                    if stderr:
+                        err_str = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)
+                        print(f"\n--- Partial stderr from {desc} ---\n{err_str.strip()}", flush=True)
+                    print(f"\n❌ FATAL: '{desc}' generated an exception: {exc}", flush=True)
+                    self.record_result(desc, False)
+                    success_overall = False
+        return success_overall
+
+    def all_passed(self) -> bool:
+        return all(passed is True for _, passed in self._results)
+
+    def print_summary(self, title: str = "📋 PRE-CI SUMMARY") -> bool:
+        print("\n" + "=" * 60, flush=True)
+        print(title, flush=True)
+        print("=" * 60, flush=True)
+        no_failures = True
+        for description, passed in self._results:
+            status_label = self.STATUS_MAP.get(passed, "❓ UNKNOWN")
+            print(f"{status_label.ljust(10)} | {description}", flush=True)
+            if passed is False:
+                no_failures = False
+        print("=" * 60, flush=True)
+        return no_failures
+
+    def cleanup(self) -> None:
+        print("\n>>> [Cleanup] Purging caches and build artifacts...", flush=True)
+        root = pathlib.Path(".")
+        base_targets = [
+            "build",
+            "dist",
+            ".ruff_cache",
+            ".pytest_cache",
+            ".coverage",
+            "python_version_*.txt",
+            "artifacts",
+        ]
+        venv_names = {"venv", ".venv", "env"}
+        # Pruneable directory names = literal (non-glob) entries from base_targets,
+        # excluding hidden ones (already filtered via startswith(".")) and files.
+        base_target_names = {
+            t
+            for t in base_targets
+            if not any(c in t for c in "*?[")
+            and not t.startswith(".")
+            and not pathlib.Path(t).suffix
+        }
+        if os.environ.get("VIRTUAL_ENV"):
+            venv_names.add(pathlib.Path(os.environ["VIRTUAL_ENV"]).name)
+        folders = []
+        for base in base_targets:
+            folders.extend(root.glob(base))
+        for dirpath, dirnames, _filenames in os.walk(root):
+            path = pathlib.Path(dirpath)
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if d not in venv_names and d not in base_target_names and not d.startswith(".")
+            ]
+            for d in list(dirnames):
+                if d == "__pycache__" or d.endswith(".egg-info"):
+                    folders.append(path / d)
+                    dirnames.remove(d)
+        for target in sorted(set(folders)):
+            self._remove_path(target)
+
+    def _remove_path(self, path: pathlib.Path) -> None:
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+        except OSError as e:
+            print(f"⚠️ Warning: Could not remove {path}: {e}", flush=True)
+
+    def execute(self) -> None:
+        """Runs the full Pre-CI gate sequence and exits non-zero on failure.
+
+        Execution order: environment sync → README update → parallel tasks
+        (Vulture + Interrogate) → Pytest (runs sequentially only when not in CI) →
+        Ruff lint/format → optional build verification → cleanup → final summary.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        print("\n" + "=" * 60, flush=True)
+        mode = "CI PIPELINE" if self.is_ci else "LOCAL PRE-CI"
+        print(f"🚀 MASS VIDEO COMPRESSOR {mode} GATE", flush=True)
+        print("=" * 60, flush=True)
+
+        self.run_command(
+            ["uv", "sync", "--all-extras", "--frozen"],
+            "Syncing Project Environment",
+            fail_fast=True,
+        )
+        self.run_command(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "python",
+                "tools/update_readme.py",
+                self.min_ver,
+                self.max_ver,
+            ],
+            "Updating README structure",
+        )
+
+        parallel_tasks = [
+            (
+                ["uv", "run", "--no-sync", "vulture", "core/", "config/", "--min-confidence", "80"],
+                "Dead Code Analysis (Vulture)",
+            ),
+            (["uv", "run", "--no-sync", "interrogate", "core", "config"], "Docstring Coverage Enforcement"),
+        ]
+        self.run_commands_parallel(parallel_tasks)
+
+        if not self.is_ci:
+            self.run_command(
+                ["uv", "run", "--no-sync", "pytest", "-v"], "Unit Tests & Coverage Enforcement"
+            )
+
+        if self.is_ci:
+            self.run_command(["uv", "run", "--no-sync", "ruff", "check", "."], "Ruff Linting")
+            self.run_command(
+                ["uv", "run", "--no-sync", "ruff", "format", "--check", "."], "Ruff Formatting"
+            )
+        elif self.all_passed():
+            self.run_command(
+                ["uv", "run", "--no-sync", "ruff", "check", ".", "--fix"], "Ruff Linting"
+            )
+            self.run_command(["uv", "run", "--no-sync", "ruff", "format", "."], "Ruff Formatting")
+        else:
+            self.record_result("Ruff Linting", "SKIPPED")
+            self.record_result("Ruff Formatting", "SKIPPED")
+
+        if self.all_passed():
+            self.run_command(
+                ["uv", "run", "--no-sync", "python", "build.py"], "Verifying Build Integrity"
+            )
+        else:
+            self.record_result("Verifying Build Integrity", "SKIPPED")
+
+        self.cleanup()
+        if self.print_summary(title="📋 FINAL PRE-CI SUMMARY"):
+            print("\n✨ ALL CHECKS PASSED.\n", flush=True)
+        else:
+            print("\n❌ Pipeline failed. See logs above.\n", flush=True)
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Mass Video Compressor Pre-CI Gate")
+    parser.add_argument("min_ver", nargs="?", default=DEFAULT_MIN_PY, help="Minimum supported Python version")
+    parser.add_argument("max_ver", nargs="?", default=DEFAULT_MAX_PY, help="Maximum supported Python version")
+    args = parser.parse_args()
+
+    # Regex for semantic-ish versions like 3.10 or 3.14-dev
+    _ver_re = re.compile(r"^\d+\.\d+(?:-[a-zA-Z0-9]+)?$")
+
+    def _validate(label: str, val: str, fallback: str) -> str:
+        if not val or not _ver_re.match(val):
+            print(
+                f"⚠️ Warning: {label}={val!r} is invalid/empty. "
+                f"Falling back to {fallback}.",
+                flush=True,
+            )
+            return fallback
+        return val
+
+    validated_min = _validate("min_ver", args.min_ver, DEFAULT_MIN_PY)
+    validated_max = _validate("max_ver", args.max_ver, DEFAULT_MAX_PY)
+
+    def _ver_tuple(v: str) -> tuple[int, int]:
+        """Parses a version string into a (major, minor) integer tuple."""
+        # Handles 3.10 and 3.14-dev
+        parts = v.split("-", 1)[0].split(".")
+        return int(parts[0]), int(parts[1])
+
+    if _ver_tuple(validated_min) > _ver_tuple(validated_max):
+        print(
+            f"⚠️ Warning: min_ver={validated_min!r} > max_ver={validated_max!r}. "
+            f"Falling back to defaults {DEFAULT_MIN_PY}/{DEFAULT_MAX_PY}.",
+            flush=True,
+        )
+        validated_min, validated_max = DEFAULT_MIN_PY, DEFAULT_MAX_PY
+
+    pipeline = PreCIPipeline(validated_min, validated_max)
+    pipeline.execute()
+
+
+

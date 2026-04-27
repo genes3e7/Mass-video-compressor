@@ -1,11 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mass-video-compressor"
+version = "0.1.0"
+description = "Mass Video Compressor"
+requires-python = ">=3.10"
+dependencies = [
+    "tqdm",
+    "imageio-ffmpeg",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.1.0",
+    "vulture>=2.10",
+    "interrogate>=1.5.0",
+    "pyinstaller",
+]
+
+[tool.setuptools]
+packages = ["core", "config"]
+
 [tool.ruff]
+extend-exclude = ["tools"]
 target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "N", "W", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tools/pre_ci.py" = ["E501", "E701"]
+"tools/update_readme.py" = ["UP015", "UP024"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]  # <--- THIS IS THE FIX
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "--cov=core --cov-report=term-missing --cov-fail-under=95"
+
+[tool.interrogate]
+ignore-init-module = true
+ignore-init-method = true
+ignore-private = true
+ignore-semiprivate = false
+ignore-magic = true
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-setters = false
+fail-under = 100
+exclude = ["setup.py", "tests", "build", "tools", "dist", ".venv"]
+ignore-regex = ["^get$", "^mock_.*", ".*Base$"]
+verbose = 0
+quiet = false
+whitelist-regex = []
+color = true
+
+
+
+
+
+
