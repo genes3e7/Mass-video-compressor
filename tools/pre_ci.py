@@ -241,14 +241,41 @@ class PreCIPipeline:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mass Video Compressor Pre-CI Gate")
-    parser.add_argument(
-        "min_ver", nargs="?", default="3.10", help="Minimum supported Python version"
-    )
-    parser.add_argument(
-        "max_ver", nargs="?", default="3.15", help="Maximum supported Python version"
-    )
+    parser.add_argument("min_ver", nargs="?", default=DEFAULT_MIN_PY, help="Minimum supported Python version")
+    parser.add_argument("max_ver", nargs="?", default=DEFAULT_MAX_PY, help="Maximum supported Python version")
     args = parser.parse_args()
-    pipeline = PreCIPipeline(args.min_ver, args.max_ver)
+
+    # Regex for semantic-ish versions like 3.10 or 3.14-dev
+    _ver_re = re.compile(r"^\d+\.\d+(?:-[a-zA-Z0-9]+)?$")
+
+    def _validate(label: str, val: str, fallback: str) -> str:
+        if not val or not _ver_re.match(val):
+            print(
+                f"⚠️ Warning: {label}={val!r} is invalid/empty. "
+                f"Falling back to {fallback}.",
+                flush=True,
+            )
+            return fallback
+        return val
+
+    validated_min = _validate("min_ver", args.min_ver, DEFAULT_MIN_PY)
+    validated_max = _validate("max_ver", args.max_ver, DEFAULT_MAX_PY)
+
+    def _ver_tuple(v: str) -> tuple[int, int]:
+        """Parses a version string into a (major, minor) integer tuple."""
+        # Handles 3.10 and 3.14-dev
+        parts = v.split("-", 1)[0].split(".")
+        return int(parts[0]), int(parts[1])
+
+    if _ver_tuple(validated_min) > _ver_tuple(validated_max):
+        print(
+            f"⚠️ Warning: min_ver={validated_min!r} > max_ver={validated_max!r}. "
+            f"Falling back to defaults {DEFAULT_MIN_PY}/{DEFAULT_MAX_PY}.",
+            flush=True,
+        )
+        validated_min, validated_max = DEFAULT_MIN_PY, DEFAULT_MAX_PY
+
+    pipeline = PreCIPipeline(validated_min, validated_max)
     pipeline.execute()
 
 
