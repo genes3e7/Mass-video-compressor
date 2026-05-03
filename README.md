@@ -61,29 +61,16 @@ MVC is a "fire-and-forget" batch compressor tool designed for power users. Unlik
 
 ## 📦 Installation & Usage
 
-**Prerequisites:** Python 3.10 - 3.14
+**Prerequisites:** Python 3.12 - 3.14
 
-It is highly recommended to run this tool in a **Virtual Environment (venv)** to keep dependencies clean.
-
-### 1. Set up the Environment
+### 1. Install Dependencies
 ```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# Mac/Linux
-python3 -m venv venv
-source venv/bin/activate
+uv sync
 ```
 
-### 2. Install Dependencies
+### 2. Run the Tool
 ```bash
-pip install -r requirements.txt
-```
-
-### 3. Run the Tool
-```bash
-python main.py
+uv run python main.py
 ```
 *Follow the on-screen prompts to select a preset and drag-and-drop your folders.*
 
@@ -93,17 +80,12 @@ python main.py
 
 Want to give this tool to a friend who doesn't have Python? You can compile it into a standalone `.exe` file.
 
-1.  **Install PyInstaller:**
+1.  **Run the Build Script:**
     ```bash
-    pip install pyinstaller
+    uv run python build.py
     ```
 
-2.  **Run the Build Script:**
-    ```bash
-    python build.py
-    ```
-
-3.  **Locate the App:**
+2.  **Locate the App:**
     Check the newly created `dist/` folder for your executable.
 
 ---
@@ -113,5 +95,5 @@ Want to give this tool to a friend who doesn't have Python? You can compile it i
 To run the test suite (ensures hardware detection and presets are valid):
 
 ```bash
-pytest tests/
+uv run pytest
 ```

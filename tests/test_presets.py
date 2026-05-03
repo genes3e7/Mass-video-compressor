@@ -8,7 +8,7 @@ from config.presets import PRESETS
 
 def test_presets_structure():
     """Ensure all presets have required keys."""
-    for key, p in PRESETS.items():
+    for _key, p in PRESETS.items():
         assert "name" in p
         assert "description" in p
         assert "use_gpu" in p
