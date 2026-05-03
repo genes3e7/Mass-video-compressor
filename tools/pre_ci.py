@@ -9,6 +9,9 @@ import subprocess
 import sys
 from typing import ClassVar
 
+DEFAULT_MIN_PY = "3.10"
+DEFAULT_MAX_PY = "3.14"
+
 
 class PreCIPipeline:
     """Orchestrates the local and CI validation checks for the project.
@@ -27,7 +30,7 @@ class PreCIPipeline:
         "SKIPPED": "⏭️  SKIP",
     }
 
-    def __init__(self, min_ver: str = "3.10", max_ver: str = "3.14") -> None:
+    def __init__(self, min_ver: str = DEFAULT_MIN_PY, max_ver: str = DEFAULT_MAX_PY) -> None:
         """Initializes the PreCIPipeline with Python version bounds.
 
         Args:
@@ -255,6 +258,17 @@ class PreCIPipeline:
 
         # Dynamically find nested artifacts, explicitly skipping venvs and hidden dirs
         venv_names = {"venv", ".venv", "env"}
+        
+        # Pruneable directory names = literal (non-glob) entries from base_targets,
+        # excluding hidden ones (already filtered via startswith(".")) and files.
+        base_target_names = {
+            t
+            for t in base_targets
+            if not any(c in t for c in "*?[")
+            and not t.startswith(".")
+            and not pathlib.Path(t).suffix
+        }
+        
         if os.environ.get("VIRTUAL_ENV"):
             venv_names.add(pathlib.Path(os.environ["VIRTUAL_ENV"]).name)
 
@@ -265,8 +279,8 @@ class PreCIPipeline:
         for dirpath, dirnames, _filenames in os.walk(root):
             path = pathlib.Path(dirpath)
 
-            # Skip common environment and hidden directories
-            if path.name in venv_names or path.name.startswith("."):
+            # Skip common environment and hidden directories, and wholesale targets
+            if path.name in venv_names or path.name in base_target_names or path.name.startswith("."):
                 dirnames[:] = []  # Don't recurse into these
                 continue
 
@@ -300,8 +314,7 @@ class PreCIPipeline:
         """Runs the full Pre-CI gate sequence and exits non-zero on failure.
 
         Execution order: environment sync → README update → Ruff lint/format →
-        parallel (Vulture + Interrogate [+ Pytest if not CI]) → summary →
-        optional build verification → cleanup → final summary.
+        parallel (Vulture + Interrogate [+ Pytest if not CI]) → cleanup → final summary.
 
         Args:
             None
@@ -360,7 +373,7 @@ class PreCIPipeline:
         if not self.is_ci:
             parallel_tasks.append(
                 (
-                    ["uv", "run", "--no-sync", "pytest", "-v"],
+                    ["uv", "run", "--no-sync", "pytest", "-n", "auto", "-v"],
                     "Unit Tests & Coverage Enforcement",
                 )
             )
@@ -389,12 +402,42 @@ class PreCIPipeline:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mass Video Compressor Pre-CI Gate")
     parser.add_argument(
-        "min_ver", nargs="?", default="3.10", help="Minimum supported Python version"
+        "min_ver", nargs="?", default=DEFAULT_MIN_PY, help="Minimum supported Python version"
     )
     parser.add_argument(
-        "max_ver", nargs="?", default="3.14", help="Maximum supported Python version"
+        "max_ver", nargs="?", default=DEFAULT_MAX_PY, help="Maximum supported Python version"
     )
     args = parser.parse_args()
 
-    pipeline = PreCIPipeline(args.min_ver, args.max_ver)
+    # Regex for semantic-ish versions like 3.10 or 3.14-dev
+    _ver_re = re.compile(r"^\d+\.\d+(?:-[a-zA-Z0-9]+)?$")
+
+    def _validate(label: str, val: str, fallback: str) -> str:
+        if not val or not _ver_re.match(val):
+            print(
+                f"⚠️ Warning: {label}={val!r} is invalid/empty. "
+                f"Falling back to {fallback}.",
+                flush=True,
+            )
+            return fallback
+        return val
+
+    validated_min = _validate("min_ver", args.min_ver, DEFAULT_MIN_PY)
+    validated_max = _validate("max_ver", args.max_ver, DEFAULT_MAX_PY)
+
+    def _ver_tuple(v: str) -> tuple[int, int]:
+        """Parses a version string into a (major, minor) integer tuple."""
+        # Handles 3.10 and 3.14-dev
+        parts = v.split("-", 1)[0].split(".")
+        return int(parts[0]), int(parts[1])
+
+    if _ver_tuple(validated_min) > _ver_tuple(validated_max):
+        print(
+            f"⚠️ Warning: min_ver={validated_min!r} > max_ver={validated_max!r}. "
+            f"Falling back to defaults {DEFAULT_MIN_PY}/{DEFAULT_MAX_PY}.",
+            flush=True,
+        )
+        validated_min, validated_max = DEFAULT_MIN_PY, DEFAULT_MAX_PY
+
+    pipeline = PreCIPipeline(validated_min, validated_max)
     pipeline.execute()
