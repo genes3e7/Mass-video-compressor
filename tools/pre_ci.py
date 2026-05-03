@@ -386,7 +386,7 @@ class PreCIPipeline:
                     "Dead Code Analysis (Vulture)",
                 ),
                 (
-                    ["uv", "run", "--no-sync", "interrogate", "core", "config", "main.py"],
+                    ["uv", "run", "--no-sync", "interrogate", "."],
                     "Docstring Coverage Enforcement",
                 ),
             ]
@@ -395,11 +395,15 @@ class PreCIPipeline:
 
             # 4. Unit Tests (Run sequentially to avoid xdist hangs and see clear progress)
             # Pytest executes in the remote test-matrix job. Prevent redundancy in CI.
-            if not self.is_ci:
+            if self.is_ci:
+                pass
+            elif self.all_passed():
                 self.run_command(
                     ["uv", "run", "--no-sync", "pytest", "-v"],
                     "Unit Tests & Coverage Enforcement",
                 )
+            else:
+                self.record_result("Unit Tests & Coverage Enforcement", "SKIPPED")
 
             # 5. Linting and Formatting (Apply only if checks passed, or if local)
             if self.is_ci:

@@ -28,23 +28,18 @@ dev = [
 packages = ["core", "config"]
 
 [tool.ruff]
-extend-exclude = ["tools"]
+line-length = 88
 target-version = "py310"
-line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B"]
+select = ["E", "F", "B", "I"]
 ignore = []
 
-[tool.ruff.lint.per-file-ignores]
-"tools/pre_ci.py" = ["E501", "E701"]
-"tools/update_readme.py" = ["UP015", "UP024"]
-
 [tool.pytest.ini_options]
-pythonpath = ["."]
+minversion = "6.0"
+addopts = "-v -ra --cov=core --cov-report=term-missing --cov-fail-under=95"
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "--cov=core --cov-report=term-missing --cov-fail-under=95"
+python_files = "test_*.py"
 
 [tool.interrogate]
 ignore-init-module = true

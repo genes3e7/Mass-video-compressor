@@ -1,7 +1,7 @@
 # Mass Video Compressor (MVC)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.10 through 3.14](https://img.shields.io/badge/python-3.10%20-%203.14-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10 through 3.14](https://img.shields.io/badge/python-3.10%20--%203.14-blue)](https://www.python.org/downloads/)
 
 **Turn gigabytes of raw footage into efficient, high-quality assets automatically.**
 
