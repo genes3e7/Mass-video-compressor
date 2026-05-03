@@ -19,13 +19,13 @@ pluggy==1.6.0
     # via pytest
 pygments==2.19.2
     # via pytest
-pyinstaller==6.19.0
+pyinstaller==6.20.0
     # via -r requirements.in
-pyinstaller-hooks-contrib==2026.0
+pyinstaller-hooks-contrib==2026.4
     # via pyinstaller
 pytest==9.0.3
     # via -r requirements.in
-ruff==0.15.11
+ruff==0.15.12
     # via -r requirements.in
 tqdm==4.67.3
     # via -r requirements.in
