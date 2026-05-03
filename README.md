@@ -1,5 +1,8 @@
 # Mass Video Compressor (MVC)
 
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10 through 3.14](https://img.shields.io/badge/python-3.10%20-%203.14-blue.svg)](https://www.python.org/downloads/)
+
 **Turn gigabytes of raw footage into efficient, high-quality assets automatically.**
 
 MVC is a "fire-and-forget" batch compressor tool designed for power users. Unlike standard converters, it doesn't just blindly encode files—it analyzes your hardware to pick the fastest engine and spins up the perfect number of parallel workers to saturate your system without crashing it.
@@ -59,20 +62,56 @@ MVC is a "fire-and-forget" batch compressor tool designed for power users. Unlik
 
 ---
 
-## 📦 Installation & Usage
+## Getting Started
 
-**Prerequisites:** Python 3.12 - 3.14
+### 1. Requirements
+*   Python 3.10 through 3.14
+*   Git (to clone the repo).
 
-### 1. Install Dependencies
+### 2. Installation
+
+#### Using uv (Recommended)
 ```bash
+# Install dependencies and setup environment from uv.lock
 uv sync
-```
 
-### 2. Run the Tool
-```bash
+# Run the Tool
 uv run python main.py
 ```
-*Follow the on-screen prompts to select a preset and drag-and-drop your folders.*
+
+## Project Structure
+
+<!-- PROJECT_TREE_START -->
+```text
+.
+├── .gitattributes
+├── .github/
+│   ├── dependabot.yml
+│   └── workflows/
+│       └── ci.yml
+├── .gitignore
+├── LICENSE
+├── README.md
+├── build.py
+├── config/
+│   ├── presets.py
+│   └── settings.py
+├── core/
+│   ├── hardware.py
+│   └── processor.py
+├── main.py
+├── pyproject.toml
+├── tests/
+│   ├── test_build.py
+│   ├── test_hardware.py
+│   ├── test_presets.py
+│   └── test_processor.py
+├── tools/
+│   ├── pre_ci.py
+│   └── update_readme.py
+└── uv.lock
+```
+<!-- PROJECT_TREE_END -->
 
 ---
 
