@@ -19,15 +19,15 @@ pluggy==1.6.0
     # via pytest
 pygments==2.20.0
     # via pytest
-pyinstaller==6.20.0
+pyinstaller==6.21.0
     # via -r requirements.in
-pyinstaller-hooks-contrib==2026.4
+pyinstaller-hooks-contrib==2026.6
     # via pyinstaller
-pytest==9.0.3
+pytest==9.1.0
     # via -r requirements.in
-ruff==0.15.16
+ruff==0.15.17
     # via -r requirements.in
-tqdm==4.68.1
+tqdm==4.68.2
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
